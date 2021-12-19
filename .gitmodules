@@ -1,3 +1,6 @@
 [submodule "userpatches/overlay/install_internetcube"]
 	path = userpatches/overlay/install_internetcube
 	url = https://github.com/labriqueinternet/install.git
+[submodule "userpatches/overlay/install_clic"]
+	path = userpatches/overlay/install_clic
+	url = https://framagit.org/clic/clic

@@ -86,6 +86,18 @@ then
     popd
 fi
 
+if [[ $YNH_BUILDER_INSTALL_CLIC == "yes" ]]
+then
+    cp -r /tmp/overlay/install_clic /var/www/install_clic
+    pushd /var/www/install_clic/
+    source deploy/deploy.sh
+    popd
+fi
+
+# disable autologin
+rm -f /etc/systemd/system/getty@.service.d/override.conf
+rm -f /etc/systemd/system/serial-getty@.service.d/override.conf
+
 # Override the first login script with our own (we don't care about desktop
 # stuff + we don't want the user to manually create a user)
 cp /tmp/overlay/check_yunohost_is_installed.sh /etc/profile.d/check_yunohost_is_installed.sh
