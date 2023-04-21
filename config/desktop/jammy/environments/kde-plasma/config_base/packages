@@ -39,6 +39,7 @@ gdebi
 ghostscript-x
 gist
 gnome-orca
+gnome-disk-utility
 gnome-screenshot
 gnome-user-docs-de
 gnome-user-docs-es
@@ -60,6 +61,7 @@ inxi
 kde-plasma-desktop
 kerneloops
 keyutils
+kwin-x11
 language-pack-gnome-de
 language-pack-gnome-en
 language-pack-gnome-es
@@ -105,18 +107,19 @@ pasystray
 pavucontrol
 pavucontrol-qt
 pavumeter
-pinta
 policykit-1
 policykit-desktop-privileges
 printer-driver-all
 profile-sync-daemon
 pulseaudio-module-bluetooth
+plasma-workspace-wayland
 redshift
 samba
 slick-greeter
 smbclient
 software-properties-gtk
 spice-vdagent
+systemsettings
 system-config-printer
 system-config-printer-common
 terminator

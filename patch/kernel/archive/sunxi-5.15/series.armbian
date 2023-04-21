@@ -164,6 +164,7 @@
 	patches.armbian/arm64-dts-sun50i-h6-orangepi-add-cpu-opp-refs.patch
 	patches.armbian/arm64-dts-sun50i-h6-orangepi-enable-higher-clock-regulator-max-.patch
 	patches.armbian/Fix-compile-error-node-not-found.patch
+	patches.armbian/i2c-mv64xxx-Add-atomic-xfer-method-to-driver.patch
 #
 #       Old driver rtl8723cs
 #
@@ -189,12 +190,13 @@
 	patches.armbian/0003-add-dump_reg-and-sunxi-sysinfo-drivers.patch
 	patches.armbian/0004-add-sunxi-addr-driver-used-to-fix-uwe5622-bluetooth-.patch
 	patches.armbian/0005-net-phy-support-yt8531c.patch
-	patches.armbian/0007-wireless-add-uwe5622-driver.patch
-	patches.armbian/0008-uwe5622-bluetooth-fix-firmware-init-fail.patch
 	patches.armbian/0009-allwinner-h6-support-ac200-audio-codec.patch
 	patches.armbian/0010-allwinner-add-sunxi_get_soc_chipid-and-sunxi_get_ser.patch
 	patches.armbian/0011-add-initial-support-for-orangepi3-lts.patch
 	patches.armbian/0012-fix-h6-emmc.patch
 	patches.armbian/0013-x-fix-h6-emmc-dts.patch
 	patches.armbian/0014-add-uwe-bsp-to-orangepi3-lts-dts-file.patch
+	patches.armbian/0015-nanopi-r1s-h5-add-rtl8153-support.patch
 	patches.armbian/999-rollback-rsb.patch
+	patches.armbian/net-usb-r8152-add-LED-configuration-from-OF.patch
+	patches.armbian/Orangepi_one_plus_Rollback-r_rsb-to-r_i2c.patch

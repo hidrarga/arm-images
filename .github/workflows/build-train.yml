@@ -1,7 +1,25 @@
 name: Build train
+#
+# Generates kernels at push if their code, patches or config was changed in any way. If those conditions are met, then it also rebuild
+# desktops, firmware, u-boot, update repository and increment nighlty build version.
+#
 
 on:
+
+#  schedule:
+#    - cron: "30 2 * * *"
+
   workflow_dispatch:
+    inputs:
+      sourcerepo:
+        description: Source repository
+        required: true
+        default: 'nightly'
+      packagesrepo:
+        type: string
+        description: Beta packages repository
+        default: 'yes'
+
   push:
     branches:
       - master
@@ -15,12 +33,55 @@ jobs:
   ##########################################################################################
 
   Cancel:
+    name: "Cancel currently active"
     if: ${{ github.repository_owner == 'Armbian' }}
     runs-on: small
+    timeout-minutes: 3
     steps:
-      - uses: n1hility/cancel-previous-runs@v2
+      - uses: styfle/cancel-workflow-action@0.11.0
+        if: ${{ github.event.schedule == '' }}
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          all_but_latest: true
+          access_token: ${{ secrets.GITHUB_TOKEN }}
+
+  ##########################################################################################
+  #                                                                                        #
+  #                           Clean upload folder                                          #
+  #                                                                                        #
+  ##########################################################################################
+
+  Cleaning:
+    permissions:
+      contents: none
+    needs: Cancel
+    if: ${{ success() && github.repository_owner == 'Armbian' }}
+    uses: armbian/scripts/.github/workflows/clean-upload.yml@master
+    secrets:
+      KEY_TORRENTS: ${{ secrets.KEY_TORRENTS }}
+      KNOWN_HOSTS_UPLOAD: ${{ secrets.KNOWN_HOSTS_UPLOAD }}
+
+  ##########################################################################################
+  #                                                                                        #
+  #                         Bump with version if compilation succeeded                     #
+  #                                                                                        #
+  ##########################################################################################
+
+  Bump:
+    needs: [Cleaning]
+    if: ${{ success() && github.repository_owner == 'Armbian' }}
+    uses: armbian/scripts/.github/workflows/update-version.yml@master
+
+    with:
+      uploading: true
+
+    secrets:
+      GPG_KEY1: ${{ secrets.GPG_KEY1 }}
+      GPG_PASSPHRASE1: ${{ secrets.GPG_PASSPHRASE1 }}
+      GPG_KEY2: ${{ secrets.GPG_KEY2 }}
+      GPG_PASSPHRASE2: ${{ secrets.GPG_PASSPHRASE2 }}
+      SCRIPTS_ACCESS_TOKEN: ${{ secrets.SCRIPTS_ACCESS_TOKEN }}
+      KEY_TORRENTS: ${{ secrets.KEY_TORRENTS }}
+      KNOWN_HOSTS_UPLOAD: ${{ secrets.KNOWN_HOSTS_UPLOAD }}
 
   ##########################################################################################
   #                                                                                        #
@@ -30,7 +91,7 @@ jobs:
 
   Merge:
     name: Merging
-    needs: Cancel
+    needs: [Bump]
     if: ${{ github.repository_owner == 'Armbian' }}
     uses: armbian/scripts/.github/workflows/merge-from-branch.yml@master
 
@@ -49,14 +110,17 @@ jobs:
   ##########################################################################################
 
   Check:
+    permissions:
+      contents: none
     name: Checking
     needs: Merge
     if: ${{ success() && github.repository_owner == 'Armbian' }}
     uses: armbian/scripts/.github/workflows/check-for-changes.yml@master
 
     with:
-      reference: nightly
-      runner: small
+      reference: '${{ github.event.inputs.sourcerepo }}'
+      runner: ubuntu-latest
+      packagesrepo: '${{ github.event.inputs.packagesrepo }}'
 
   ##########################################################################################
   #                                                                                        #
@@ -65,6 +129,8 @@ jobs:
   ##########################################################################################
 
   Kernel:
+    permissions:
+      contents: none
     needs: Check
     if: ${{ success() && github.repository_owner == 'Armbian' }}
     uses: armbian/scripts/.github/workflows/build-kernel.yml@master
@@ -72,7 +138,8 @@ jobs:
     with:
       uploading: true
       runner: fast
-      reference: nightly
+      reference: '${{ github.event.inputs.sourcerepo }}'
+      packagesrepo: '${{ github.event.inputs.packagesrepo }}'
 
     secrets:
       GPG_KEY1: ${{ secrets.GPG_KEY1 }}
@@ -90,12 +157,16 @@ jobs:
   ##########################################################################################
 
   Firmware:
+    permissions:
+      contents: none
     needs: Check
     if: ${{ success() && github.repository_owner == 'Armbian' }}
     uses: armbian/scripts/.github/workflows/build-firmware.yml@master
 
     with:
-      reference: nightly
+      reference: '${{ github.event.inputs.sourcerepo }}'
+      packagesrepo: '${{ github.event.inputs.packagesrepo }}'
+      uploading: true
       runner: small
 
     secrets:
@@ -109,13 +180,17 @@ jobs:
   ##########################################################################################
 
   Desktop:
+    permissions:
+      contents: none
     needs: Check
     if: ${{ success() && github.repository_owner == 'Armbian' }}
     uses: armbian/scripts/.github/workflows/build-desktop.yml@master
 
     with:
       uploading: true
-      runner: small
+      runner: ubuntu-latest
+      reference: '${{ github.event.inputs.sourcerepo }}'
+      packagesrepo: '${{ github.event.inputs.packagesrepo }}'
 
     secrets:
       GPG_KEY1: ${{ secrets.GPG_KEY1 }}
@@ -133,6 +208,8 @@ jobs:
   ##########################################################################################
 
   legacy:
+    permissions:
+      contents: none
     needs: Check
     if: ${{ success() && github.repository_owner == 'Armbian' }}
     uses: armbian/scripts/.github/workflows/build-u-boot-with-docker.yml@master
@@ -143,7 +220,8 @@ jobs:
       include: 'grep legacy | '
       exclude: ''
       uploading: false
-      destref: 'nightly'
+      destref: '${{ github.event.inputs.sourcerepo }}'
+      packagesrepo: '${{ github.event.inputs.packagesrepo }}'
 
     secrets:
       GPG_KEY1: ${{ secrets.GPG_KEY1 }}
@@ -155,6 +233,8 @@ jobs:
       KNOWN_HOSTS_UPLOAD: ${{ secrets.KNOWN_HOSTS_UPLOAD }}
 
   current:
+    permissions:
+      contents: none
     needs: Check
     if: ${{ success() && github.repository_owner == 'Armbian' }}
     uses: armbian/scripts/.github/workflows/build-u-boot-with-docker.yml@master
@@ -165,7 +245,8 @@ jobs:
       include: 'grep current | '
       exclude: ''
       uploading: false
-      destref: 'nightly'
+      destref: '${{ github.event.inputs.sourcerepo }}'
+      packagesrepo: '${{ github.event.inputs.packagesrepo }}'
 
     secrets:
       GPG_KEY1: ${{ secrets.GPG_KEY1 }}
@@ -178,6 +259,8 @@ jobs:
 
 
   edge:
+    permissions:
+      contents: none
     needs: Check
     if: ${{ success() && github.repository_owner == 'Armbian' }}
     uses: armbian/scripts/.github/workflows/build-u-boot-with-docker.yml@master
@@ -188,7 +271,8 @@ jobs:
       include: 'grep edge | '
       exclude: ''
       uploading: false
-      destref: 'nightly'
+      destref: '${{ github.event.inputs.sourcerepo }}'
+      packagesrepo: '${{ github.event.inputs.packagesrepo }}'
 
     secrets:
       GPG_KEY1: ${{ secrets.GPG_KEY1 }}
@@ -205,8 +289,23 @@ jobs:
   #                                                                                        #
   ##########################################################################################
 
-  Deploy:
+  Deploycheck:
+    permissions:
+      contents: none
     needs: [Kernel,Desktop,Firmware,legacy,current,edge]
+    if: ${{ inputs.sourcerepo == 'nightly' || inputs.sourcerepo == '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete control artefact
+        uses: geekyeggo/delete-artifact@v2
+        if: ${{ inputs.checking }}
+        with:
+          name: changes
+
+  Deploy:
+    permissions:
+      contents: none
+    needs: [Deploycheck]
     if: ${{ success() && github.repository_owner == 'Armbian' }}
     uses: armbian/scripts/.github/workflows/deploy.yml@master
 
@@ -224,227 +323,93 @@ jobs:
       KNOWN_HOSTS_UPLOAD: ${{ secrets.KNOWN_HOSTS_UPLOAD }}
 
   apt-armbian-com:
-    name: "Stable repository"
+    permissions:
+      contents: none
+    name: "Update stable"
     needs: [Deploy]
-    if: ${{ success() && github.repository_owner == 'Armbian' }}
-    uses: armbian/scripts/.github/workflows/update-repository.yml@master
-
-    with:
-      KEY_ID: 'repository'
-
-    secrets:
-      KEY_REPOSITORY: ${{ secrets.KEY_REPOSITORY }}
-      USER_REPOSITORY: ${{ secrets.USER_REPOSITORY }}
-      HOST_REPOSITORY: ${{ secrets.HOST_REPOSITORY }}
-      KNOWN_HOSTS_REPOSITORY: ${{ secrets.KNOWN_HOSTS_REPOSITORY }}
+    if: ${{ github.repository_owner == 'Armbian' }}
+    runs-on: [self-hosted, Linux, local]
+    steps:
+      - name: Remove previous artefacts if any
+        run: |
+          sudo rm -rf changes 2>/dev/null || true
+      - name: Download changes
+        uses: actions/download-artifact@v3
+        with:
+          name: changes
+      - name: Check
+        run: |
+          [ -s changes ] || echo "SKIP=yes" >> $GITHUB_ENV
+      - if: ${{ env.SKIP != 'yes' }}
+        uses: armbian/actions/triggers@main
+        with:
+          KEY: ${{ secrets.KEY_REPOSITORY }}
+          USER: ${{ secrets.USER_REPOSITORY }}
+          HOST: ${{ secrets.HOST_REPOSITORY }}
+          KNOWN_HOSTS: ${{ secrets.KNOWN_HOSTS_REPOSITORY }}
 
   beta-armbian-com:
-    name: "Nighly repository"
+    permissions:
+      contents: none
+    name: "Update beta"
     needs: [Deploy]
-    if: ${{ success() && github.repository_owner == 'Armbian' }}
-    uses: armbian/scripts/.github/workflows/update-repository.yml@master
-
-    with:
-      KEY_ID: 'repository-beta'
-
-    secrets:
-      KEY_REPOSITORY: ${{ secrets.KEY_REPOSITORY_BETA }}
-      USER_REPOSITORY: ${{ secrets.USER_REPOSITORY }}
-      HOST_REPOSITORY: ${{ secrets.HOST_REPOSITORY }}
-      KNOWN_HOSTS_REPOSITORY: ${{ secrets.KNOWN_HOSTS_REPOSITORY }}
+    if: ${{ github.repository_owner == 'Armbian' }}
+    runs-on: [self-hosted, Linux, local]
+    steps:
+      - name: Remove previous artefacts if any
+        run: |
+          sudo rm -rf changes 2>/dev/null || true
+      - name: Download changes
+        uses: actions/download-artifact@v3
+        with:
+          name: changes
+      - name: Check
+        run: |
+          [ -s changes ] || echo "SKIP=yes" >> $GITHUB_ENV
+      - if: ${{ env.SKIP != 'yes' }}
+        uses: armbian/actions/triggers@main
+        with:
+          KEY: ${{ secrets.KEY_REPOSITORY_BETA }}
+          USER: ${{ secrets.USER_REPOSITORY }}
+          HOST: ${{ secrets.HOST_REPOSITORY }}
+          KNOWN_HOSTS: ${{ secrets.KNOWN_HOSTS_REPOSITORY }}
 
   sync-servers:
+    permissions:
+      contents: none
     name: "Sync servers"
     needs: [apt-armbian-com,beta-armbian-com]
-    if: ${{ success() && github.repository_owner == 'Armbian' }}
-    uses: armbian/scripts/.github/workflows/sync-servers.yml@master
-
-    with:
-      KEY_ID: 'upload'
-
-    secrets:
-      KEY_UPLOAD: ${{ secrets.KEY_UPLOAD }}
-      USER_REPOSITORY: ${{ secrets.USER_REPOSITORY }}
-      HOST_REPOSITORY: ${{ secrets.HOST_REPOSITORY }}
-      KNOWN_HOSTS_REPOSITORY: ${{ secrets.KNOWN_HOSTS_REPOSITORY }}
-
-  ##########################################################################################
-  #                                                                                        #
-  #                                    Build x86 CLI images                                #
-  #                                                                                        #
-  ##########################################################################################
-
-  x86-cli-images:
-    needs: [apt-armbian-com,beta-armbian-com,sync-servers]
-    uses: armbian/scripts/.github/workflows/build-with-docker.yml@master
-
-    with:
-
-      variant: 'cli:beta'
-      runner: "small"
-      sourcerepo: 'nightly'
-      part: 1
-      of: 1
-      include: 'grep uefi-x86 | '
-      exclude: ''
-      uploading: false
-
-    secrets:
-      GPG_KEY1: ${{ secrets.GPG_KEY1 }}
-      GPG_PASSPHRASE1: ${{ secrets.GPG_PASSPHRASE1 }}
-      GPG_KEY2: ${{ secrets.GPG_KEY2 }}
-      GPG_PASSPHRASE2: ${{ secrets.GPG_PASSPHRASE2 }}
-      SCRIPTS_ACCESS_TOKEN: ${{ secrets.SCRIPTS_ACCESS_TOKEN }}
-      SSH_KEY_TORRENTS: ${{ secrets.KEY_TORRENTS }}
-      KNOWN_HOSTS_UPLOAD: ${{ secrets.KNOWN_HOSTS_UPLOAD }}
-
-  ##########################################################################################
-  #                                                                                        #
-  #                                    Build x86 desktop images                            #
-  #                                                                                        #
-  ##########################################################################################
-
-  x86-desktop-images:
-    needs: [apt-armbian-com,beta-armbian-com,sync-servers]
-    uses: armbian/scripts/.github/workflows/build-with-docker.yml@master
-
-    with:
-
-      variant: 'desktop:beta'
-      runner: "big"
-      sourcerepo: 'nightly'
-      part: 1
-      of: 1
-      include: 'grep uefi-x86 | '
-      exclude: ''
-      uploading: false
-
-    secrets:
-      GPG_KEY1: ${{ secrets.GPG_KEY1 }}
-      GPG_PASSPHRASE1: ${{ secrets.GPG_PASSPHRASE1 }}
-      GPG_KEY2: ${{ secrets.GPG_KEY2 }}
-      GPG_PASSPHRASE2: ${{ secrets.GPG_PASSPHRASE2 }}
-      SCRIPTS_ACCESS_TOKEN: ${{ secrets.SCRIPTS_ACCESS_TOKEN }}
-      SSH_KEY_TORRENTS: ${{ secrets.KEY_TORRENTS }}
-      KNOWN_HOSTS_UPLOAD: ${{ secrets.KNOWN_HOSTS_UPLOAD }}
-
-  ##########################################################################################
-  #                                                                                        #
-  #                                    Build CLI images                                    #
-  #                                                                                        #
-  ##########################################################################################
-
-  cli-images:
-    needs: [apt-armbian-com,beta-armbian-com,sync-servers]
-    uses: armbian/scripts/.github/workflows/build-with-docker.yml@master
-
-    with:
-
-      variant: 'cli:beta'
-      runner: "small"
-      sourcerepo: 'nightly'
-      part: 1
-      of: 1
-      include: ''
-      exclude: 'grep -v uefi-x86 | '
-      uploading: false
-
-    secrets:
-      GPG_KEY1: ${{ secrets.GPG_KEY1 }}
-      GPG_PASSPHRASE1: ${{ secrets.GPG_PASSPHRASE1 }}
-      GPG_KEY2: ${{ secrets.GPG_KEY2 }}
-      GPG_PASSPHRASE2: ${{ secrets.GPG_PASSPHRASE2 }}
-      SCRIPTS_ACCESS_TOKEN: ${{ secrets.SCRIPTS_ACCESS_TOKEN }}
-      SSH_KEY_TORRENTS: ${{ secrets.KEY_TORRENTS }}
-      KNOWN_HOSTS_UPLOAD: ${{ secrets.KNOWN_HOSTS_UPLOAD }}
-
-  ##########################################################################################
-  #                                                                                        #
-  #                                    Build desktop images                                #
-  #                                                                                        #
-  ##########################################################################################
-
-  desktop-images:
-    needs: [apt-armbian-com,beta-armbian-com,sync-servers]
-    uses: armbian/scripts/.github/workflows/build-with-docker.yml@master
-
-    with:
-      variant: 'desktop:beta'
-      runner: "big"
-      sourcerepo: 'nightly'
-      part: 1
-      of: 1
-      include: ''
-      exclude: 'grep -v uefi-x86 | '
-      uploading: false
-
-    secrets:
-      GPG_KEY1: ${{ secrets.GPG_KEY1 }}
-      GPG_PASSPHRASE1: ${{ secrets.GPG_PASSPHRASE1 }}
-      GPG_KEY2: ${{ secrets.GPG_KEY2 }}
-      GPG_PASSPHRASE2: ${{ secrets.GPG_PASSPHRASE2 }}
-      SCRIPTS_ACCESS_TOKEN: ${{ secrets.SCRIPTS_ACCESS_TOKEN }}
-      SSH_KEY_TORRENTS: ${{ secrets.KEY_TORRENTS }}
-      KNOWN_HOSTS_UPLOAD: ${{ secrets.KNOWN_HOSTS_UPLOAD }}
-
-  ##########################################################################################
-  #                                                                                        #
-  #                         Bump with version if compilation succeeded                     #
-  #                                                                                        #
-  ##########################################################################################
-
-  Bump:
-    needs: [x86-cli-images,x86-desktop-images,cli-images,desktop-images]
-    if: ${{ success() && github.repository_owner == 'Armbian' }}
-    uses: armbian/scripts/.github/workflows/update-version.yml@master
-
-    with:
-
-      uploading: true
-
-    secrets:
-      GPG_KEY1: ${{ secrets.GPG_KEY1 }}
-      GPG_PASSPHRASE1: ${{ secrets.GPG_PASSPHRASE1 }}
-      GPG_KEY2: ${{ secrets.GPG_KEY2 }}
-      GPG_PASSPHRASE2: ${{ secrets.GPG_PASSPHRASE2 }}
-      SCRIPTS_ACCESS_TOKEN: ${{ secrets.SCRIPTS_ACCESS_TOKEN }}
-      KEY_TORRENTS: ${{ secrets.KEY_TORRENTS }}
-      KNOWN_HOSTS_UPLOAD: ${{ secrets.KNOWN_HOSTS_UPLOAD }}
-
-  ##########################################################################################
-  #                                                                                        #
-  #                        Update download links and create torrents                       #
-  #                                                                                        #
-  ##########################################################################################
-
-  Torrents:
-    name: Torrents
-    needs: [x86-cli-images,x86-desktop-images,cli-images,desktop-images]
     if: ${{ github.repository_owner == 'Armbian' }}
-    uses: armbian/scripts/.github/workflows/update-download.yml@master
-
-    secrets:
-      KEY_TORRENTS: ${{ secrets.KEY_TORRENTS }}
-      USER_TORRENTS: ${{ secrets.USER_TORRENTS }}
-      HOST_TORRENTS: ${{ secrets.HOST_TORRENTS }}
-      KNOWN_HOSTS_TORRENTS: ${{ secrets.KNOWN_HOSTS_TORRENTS }}
-
-  ##########################################################################################
-  #                                                                                        #
-  #                               Clean runners                                            #
-  #                                                                                        #
-  ##########################################################################################
-
-  Maintaining:
-
-    needs: [Bump,Torrents]
+    runs-on: [self-hosted, Linux, local]
+    steps:
+      - name: Remove previous artefacts if any
+        run: |
+          sudo rm -rf changes 2>/dev/null || true
+      - name: Download changes
+        uses: actions/download-artifact@v3
+        with:
+          name: changes
+      - name: Check
+        run: |
+          [ -s changes ] || echo "SKIP=yes" >> $GITHUB_ENV
+      - if: ${{ env.SKIP != 'yes' }}
+        uses: armbian/actions/triggers@main
+        with:
+          KEY: ${{ secrets.KEY_SYNC_MIRRORS }}
+          USER: ${{ secrets.USER_REPOSITORY }}
+          HOST: ${{ secrets.HOST_REPOSITORY }}
+          KNOWN_HOSTS: ${{ secrets.KNOWN_HOSTS_REPOSITORY }}
+  
+  Clean:
+  
+    name: Clean
+    needs: [sync-servers]
+    runs-on: Linux
     if: ${{ success() && github.repository_owner == 'Armbian' }}
-    uses: armbian/scripts/.github/workflows/maintain-runners.yml@master
+    steps:
 
-    with:
-
-      checking: true
-
-    secrets:
-      KEY_TORRENTS: ${{ secrets.KEY_TORRENTS }}
-      KNOWN_HOSTS_UPLOAD: ${{ secrets.KNOWN_HOSTS_UPLOAD }}
+      - name: Cleaning
+        uses: geekyeggo/delete-artifact@v2    
+        with:
+          name: changes
+          failOnError: false

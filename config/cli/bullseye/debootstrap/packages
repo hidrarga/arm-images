@@ -1,4 +1,5 @@
 apt-utils
+btrfs-progs
 bzip2
 ca-certificates
 console-setup
@@ -7,6 +8,7 @@ crda
 cron
 dbus
 dbus-user-session
+debsums
 dmsetup
 fdisk
 gnupg

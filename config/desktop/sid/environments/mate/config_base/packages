@@ -10,7 +10,7 @@ dictionaries-common
 gcr
 gdebi
 gnome-keyring
-gnome-orca
+gnome-disk-utility
 gnome-packagekit
 gtk2-engines
 gtk2-engines-murrine
@@ -75,8 +75,6 @@ mate-terminal-common
 mate-themes
 mate-tweak
 mate-user-guide
-mate-user-share
-mate-user-share-common
 mate-utils
 mate-utils-common
 mate-window-applets-common
