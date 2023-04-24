@@ -24,27 +24,6 @@ source /tmp/overlay/image_env.sh
 # Disable core dumps because hostname keep crashing in qemu static
 ulimit -c 0
 
-if [[ $BOARD == "lime2" ]]
-then
-    # Freeze armbian/kernel version
-    # because current version break dhcp on eth0
-    # (since around ~November 2020 ?)
-
-    apt install -y --allow-downgrades \
-        armbian-firmware=21.08.6 \
-        armbian-bsp-cli-lime2=21.08.8 \
-        linux-dtb-current-sunxi=21.08.2 \
-        linux-image-current-sunxi=21.08.2 \
-        linux-u-boot-lime2-current=21.08.8 \
-    || exit 1
-
-    apt-mark hold armbian-firmware
-    apt-mark hold armbian-bsp-cli-lime2
-    apt-mark hold linux-dtb-current-sunxi
-    apt-mark hold linux-image-current-sunxi
-    apt-mark hold linux-u-boot-lime2-current
-fi
-
 echo "auto eth0" > /etc/network/interfaces.d/eth0.conf
 echo "allow-hotplug eth0" >> /etc/network/interfaces.d/eth0.conf
 echo "iface eth0 inet dhcp" >> /etc/network/interfaces.d/eth0.conf
@@ -81,6 +60,7 @@ rm -f /var/log/yunohost-installation*
 if [[ $YNH_BUILDER_INSTALL_INTERNETCUBE == "yes" ]]
 then
     cp -r /tmp/overlay/install_internetcube /var/www/install_internetcube
+    rm -rf /var/www/install_internetcube/.git
     pushd /var/www/install_internetcube/
     source deploy/deploy.sh
     popd
@@ -96,13 +76,17 @@ cp /tmp/overlay/check_first_login.sh /etc/profile.d/check_first_login.sh
 cp /tmp/overlay/armbian-motd /etc/default/armbian-motd
 touch /root/.not_logged_in_yet
 
+# We don't want the damn network-manager :/
+apt purge -y network-manager network-manager-openvpn
+
 # Make sure resolv.conf points to DNSmasq
 # (somehow networkmanager or something else breaks this before...)
+install -Dv /tmp/overlay/resolv.conf /etc/resolvconf/run/resolv.conf
 rm -f /etc/resolv.conf
 ln -s /etc/resolvconf/run/resolv.conf /etc/resolv.conf
 
-# Get the yunohost version for naming the .img
-apt-cache policy yunohost | grep -Po 'Installed: \K.+' > /tmp/overlay/yunohost_version
+# Disable /var/log in RAM
+sed -i 's/^ENABLED=true/ENABLED=false/' /etc/default/armbian-zram-config /etc/default/armbian-ramlog
 
 # Clean stuff
 apt clean

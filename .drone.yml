@@ -53,7 +53,7 @@ steps:
   - "[ -f  'output/images/'\"$IMAGE_NAME_PREFIX\"'_'*'_'\"$DRONE_TAG\"'_'\"$BOARD\"'.img'* ] && exit"
   - env | grep '^YNH_BUILDER' > userpatches/overlay/image_env.sh
   - ./compile.sh yunohost BOARD="$BOARD"
-  - mv --no-clobber --no-target-directory output/images/Armbian_*.img 'output/images/'"$IMAGE_NAME_PREFIX"'_'`cat userpatches/overlay/yunohost_version`'_'"$DRONE_TAG"'_'"$BOARD"'.img'
+  - mv --no-clobber --no-target-directory output/images/Armbian_*.img 'output/images/'"$IMAGE_NAME_PREFIX"'_'`cat output/yunohost_version`'_'"$DRONE_TAG"'_'"$BOARD"'.img'
   - gzip -v output/images/*.img || ls -lh output/images/*.img.gz  
   when:
     event: tag
