@@ -4,3 +4,9 @@ http://www.armbian.com/using-armbian-tools/
 ## Build with docker
 
 `./compile.sh docker yunohost BOARD=lime2`
+
+## Build CLIC for ODroid boards 
+
+ - `YNH_BUILDER_INSTALL_CLIC=yes ./compile.sh yunohost BOARD=odroidn2`
+ - `YNH_BUILDER_INSTALL_CLIC=yes ./compile.sh yunohost BOARD=odroidxu4`
+ - `YNH_BUILDER_INSTALL_CLIC=yes ./compile.sh yunohost BOARD=odroidhc4`
